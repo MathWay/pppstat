@@ -20,13 +20,13 @@
 #define PPPD_TIME "Connect time" //А по этой - время соединения
 #define PPPD_OUTBYTE "Sent" //Sent bytes
 #define PPPD_INBYTE "received" //Received bytes
-//#define LOGROTATE "/etc/logrotate.d/ppp_stat" //Файл настройки для logrotate
+#define LOGROTATE "/etc/logrotate.d/ppp_stat" //Файл настройки для logrotate
 
 #define PATH 128
 #define NAME 16
 #define LINE 256
 #define MAXUSR 8
-//#define DATE 6
+#define DATE 6
 
 #define UNZIP "bunzip"
 #define ZIP "bzip"
@@ -42,40 +42,27 @@ struct connection
     struct connection *next;
 };
 
-void extract_logs(char *, char *);
+void extract_logs(char *);
 struct connection * parse_logs(void);
 void pack(char *);
 void unpack(char *);
-//char * get_cur_date(int, struct tm *);
-//int inc_day(char * day);
+char * get_cur_date(int, struct tm *);
+int inc_day(char * day);
 
 int main(int argc, char *argv[] )
 {
-	struct connection *head;
- 	char file[PATH];
-  	int i;
+    struct connection *head;
 
-	for (i = 5; i > 0; i--)
-	{
-		*file = '\0';
-		sprintf(file, "%s.%d", LOGS, i);
-		unpack(file);
-		if ( i == 5 )
-			extract_logs(file, "w");
-		else
-			extract_logs(file, "a");
-		pack(file);
-	}
-	extract_logs(LOGS, "a");
-	head = parse_logs();
-
+    extract_logs(LOGS);        
+    head = parse_logs();
+    
 }
 
-void extract_logs(char *logfile, char *wmode)
+void extract_logs(char *logfile)
 {
     FILE *log, *pppdlog;
     char line[LINE], msg[PATH];
-
+    
     if ( (log = fopen(logfile, "r")) == NULL )
     {
 	strcpy(msg, "open ");
@@ -84,7 +71,7 @@ void extract_logs(char *logfile, char *wmode)
 	exit(1);
     }
     
-    if ( (pppdlog = fopen(PPPD_LOG, wmode)) == NULL )
+    if ( (pppdlog = fopen(PPPD_LOG, "w")) == NULL )
     {
 	strcpy(msg, "open ");
 	strcat(msg, PPPD_LOG);
@@ -126,21 +113,19 @@ struct connection * parse_logs()
     
     while ( fgets(line, LINE-1, pppdlog) != NULL )
     {
-        if ( (p = strstr(line, PPPD_START)) != NULL )
-    	{
-	    if ( !started )
+    	if ( !started )
+	{
+	    if ( (p = strstr(line, PPPD_START)) != NULL )
+	    {
 		started = 1;
-	    else
-	    {	
-		fprintf(stderr, "warning: pppd was abnormally terminated on %s\n", tmp->start);
-		connected = 0;
+		p += strlen(PPPD_START) + 1;
+		/*tmp->user = */printf("\nuser:\t%s\n", strtok(p, " ,"));
+		continue; 	    
 	    }
-	    p += strlen(PPPD_START) + 1;
-	    /*tmp->user = */printf("\nuser:\t%s\n", strtok(p, " ,"));
-	    continue;
+	    else
+		continue;
 	}
-
-	if ( started )
+	else
 	{
 	    if ( !connected )
     	    {
@@ -171,10 +156,12 @@ struct connection * parse_logs()
 		else if ( (p = strstr(line, PPPD_OUTBYTE)) != NULL )
 		{
 		    p += strlen(PPPD_OUTBYTE) + 1;
-		    /*tmp->outbyte = */printf("out:\t%ld\n", atol( p ) );
+		    /*tmp->outbyte = */printf("out:\t%s\n",/* atol( */strtok(p, " ,") /*)*/);
 		    p = strstr(line, PPPD_INBYTE);
 		    p += strlen(PPPD_INBYTE) + 1;
-		    /*tmp->inbyte = */printf("in:\t%ld\n", atol( p ) );
+		    strtok(NULL," ,");
+		    strtok(NULL, " ,");
+		    /*tmp->inbyte = */printf("in:\t%s\n",/* atol( */strtok(NULL, " ,") /*)*/);
 		    //current->next = tmp;
 		    //current = tmp;
 		    //tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
@@ -182,18 +169,25 @@ struct connection * parse_logs()
 		    continue;
 		}
 	    }
+	    if ( (p = strstr(line, PPPD_START)) != NULL )
+	    {	
+		fprintf(stderr, "%s", line);
+		fprintf(stderr, "warning: pppd was abnormally terminated on %s\n", tmp->start);
+		connected = 0;
+		p += strlen(PPPD_START) + 1;
+		/*tmp->user = */printf("\nuser: %s\n", strtok(p, " ,"));
+		continue; 	    
+	    }
 	    
 	}    
     }
     		    		
     return (head);
 }
-
 void pack(char *file)
 {
     int pid, stat_loc;
 
-    pid = fork();
     if (pid == -1)
     {
     	perror("fork");
@@ -231,7 +225,7 @@ void unpack(char *file)
     else
 	wait(&stat_loc);
 }
-/*
+
 char * get_cur_date(int i, struct tm * tme)
 {
     char *s;
@@ -289,4 +283,4 @@ int inc_day(char * day)
     sprintf(day, "%s %d", mon, dy);
     return (dy == 1)? 1 : 0;
 }
-*/
+
