@@ -1,5 +1,4 @@
-//Парсер логов pppd на предмет составления статистики соединений
-//по пользователям, прову и т. д.
+//Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,59 +9,89 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <math.h>
 
-#define LOGS "/var/log/daemons/info" //Где лежат логи демонов (и pppd)
-#define PPPD_LOG "/var/log/pppd.log" //Где будет лежать статистика pppd
+#define LOGS "/var/log/daemons/info" //here we can find pppd logs
+#define PPPD_LOG "/var/log/pppd.log" //here we'll place pppd logs
 #define PPPD "pppd[" //all strings from pppd
-#define PPPD_START "started by" //По этой строке определим юзверя
+#define PPPD_START "started by" //after this we can find user name
 #define ISP "remote IP address" //ISP detecting
 #define EXIT "Exit." //Cases, when pppd failed to connect
-#define PPPD_TIME "Connect time" //А по этой - время соединения
+#define PPPD_TIME "Connect time" //Self explaining. Now not used
 #define PPPD_OUTBYTE "Sent" //Sent bytes
 #define PPPD_INBYTE "received" //Received bytes
-#define LOGROTATE "/etc/logrotate.d/ppp_stat" //Файл настройки для logrotate
+#define LOGROTATE "/etc/logrotate.d/ppp_stat" //file for logrotate. Not used
 
 #define PATH 128
 #define NAME 16
 #define LINE 256
-#define MAXUSR 8
-#define DATE 6
 
-#define UNZIP "bunzip"
+#define UNZIP "bunzip" //Eah, such a stupid way to get into archived files
 #define ZIP "bzip"
 
-struct connection
+struct connection //will contain info about every SUCCSESSFUL connection
 {
-    char *user;//[NAME];
-    char *isp;//[NAME];
-    char start[NAME];
-    char end[NAME];
+    char iscon; // to detect, is this connection, or tail of one after normalization
+    char user[NAME]; //user name
+    char isp[NAME]; //ISP IP				<<--
+    struct tm *start; //when begin
+    struct tm *end; //when end
+    long dur; //duration of connection in secs
     long inbyte;
     long outbyte;
     struct connection *next;
 };
 
-void extract_logs(char *);
-struct connection * parse_logs(void);
-void pack(char *);
-void unpack(char *);
-char * get_cur_date(int, struct tm *);
-int inc_day(char * day);
+struct cons //small stat on unsuccsessful connections
+{
+    int total;
+    int failed;
+    int killed;
+} cstat = {0};
+
+const char month[12][4] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+
+void extract_logs(char *, char *); //extract logs fron info
+struct connection * parse_logs(void); //parse extracted logs
+void show_cons(struct connection *); //show connections - for debug
+void pack(char *); //unzip archive
+void unpack(char *); //zip archive
+struct tm * str2tm(char *); //transform useless date string to convenient structure 
+void norm_cons(struct connection *); //divide connections, is they spread on few days
+long tm2sec(struct tm *); //convert time in tm to seconds
+struct connection * mkprestat(struct connection *); //make prestatistics
+//char * get_cur_date(int, struct tm *);
+//int inc_day(char * day);
 
 int main(int argc, char *argv[] )
 {
-    struct connection *head;
+	struct connection *head; //start of list of cons
+ 	char file[PATH];
+  	int i;
 
-    extract_logs(LOGS);        
-    head = parse_logs();
-    
+	for (i = 5; i > 0; i--) 
+	{
+		*file = '\0';
+		sprintf(file, "%s.%d", LOGS, i);
+		unpack(file);
+		if ( i == 5 )
+			extract_logs(file, "w");
+		else
+			extract_logs(file, "a");
+		pack(file);
+	}
+	extract_logs(LOGS, "a");
+	head = parse_logs();
+//	show_cons(head);
+	norm_cons(head);
+	show_cons(head);
 }
 
-void extract_logs(char *logfile)
+void extract_logs(char *logfile, char *wmode)
 {
     FILE *log, *pppdlog;
     char line[LINE], msg[PATH];
-    
+
     if ( (log = fopen(logfile, "r")) == NULL )
     {
 	strcpy(msg, "open ");
@@ -71,7 +100,7 @@ void extract_logs(char *logfile)
 	exit(1);
     }
     
-    if ( (pppdlog = fopen(PPPD_LOG, "w")) == NULL )
+    if ( (pppdlog = fopen(PPPD_LOG, wmode)) == NULL )
     {
 	strcpy(msg, "open ");
 	strcat(msg, PPPD_LOG);
@@ -100,6 +129,8 @@ struct connection * parse_logs()
     struct connection *tmp, *head, *current;
     char started = 0, connected = 0;
     
+    struct tm *date;
+    
     head = tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
     current = NULL;
     
@@ -113,19 +144,24 @@ struct connection * parse_logs()
     
     while ( fgets(line, LINE-1, pppdlog) != NULL )
     {
-    	if ( !started )
-	{
-	    if ( (p = strstr(line, PPPD_START)) != NULL )
-	    {
+        if ( (p = strstr(line, PPPD_START)) != NULL )
+    	{
+	    if ( !started )
 		started = 1;
-		p += strlen(PPPD_START) + 1;
-		/*tmp->user = */printf("\nuser:\t%s\n", strtok(p, " ,"));
-		continue; 	    
-	    }
 	    else
-		continue;
+	    {	
+		//fprintf(stderr, "warning: pppd was abnormally terminated on %s\n", tmp->start);
+		connected = 0;
+		cstat.killed++;
+	    }
+	    tmp->iscon = 1;
+	    cstat.total++;
+	    p += strlen(PPPD_START) + 1;
+	    strncpy(tmp->user, strtok(p, " ,"), NAME-1);
+	    continue;
 	}
-	else
+
+	if ( started )
 	{
 	    if ( !connected )
     	    {
@@ -133,15 +169,16 @@ struct connection * parse_logs()
 		{
 		    connected = 1;
 		    p += strlen(ISP) + 1;
-		    /*tmp->isp = */printf("ISP:\t%s\n", strtok(p, " ,\n"));
-		    strncpy(tmp->start, line, NAME-1);
-		    printf("start:\t%s\n", tmp->start);
+		    strncpy(tmp->isp, strtok(p, " ,\n"), NAME-1);
+		    tmp->start = str2tm(line);
+		    //strncpy(tmp->start, line, NAME-1);
 		    continue;
 		}
 		else if ( strstr(line, EXIT) != NULL )
 		{
 		    started = 0;
-		    fprintf(stderr, "pppd failed to connect on %s\n", strncpy(tmp->start, line, NAME-1));
+		    //fprintf(stderr, "pppd failed to connect on %s\n", strncpy(tmp->start, line, NAME-1));
+		    cstat.failed++;
 		    continue;
 		}
 	    }
@@ -149,45 +186,66 @@ struct connection * parse_logs()
 	    {
 	    	if ( (strstr(line, PPPD_TIME)) != NULL )
 		{
-		    strncpy(tmp->end, line, NAME-1);
-		    printf("end:\t%s\n", tmp->end);
+		    tmp->end = str2tm(line);
+		    //strncpy(tmp->end, line, NAME-1);
 		    continue;
 		}
 		else if ( (p = strstr(line, PPPD_OUTBYTE)) != NULL )
 		{
 		    p += strlen(PPPD_OUTBYTE) + 1;
-		    /*tmp->outbyte = */printf("out:\t%s\n",/* atol( */strtok(p, " ,") /*)*/);
+		    tmp->outbyte = atol( p );
 		    p = strstr(line, PPPD_INBYTE);
 		    p += strlen(PPPD_INBYTE) + 1;
-		    strtok(NULL," ,");
-		    strtok(NULL, " ,");
-		    /*tmp->inbyte = */printf("in:\t%s\n",/* atol( */strtok(NULL, " ,") /*)*/);
-		    //current->next = tmp;
-		    //current = tmp;
-		    //tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
+		    tmp->inbyte = atol( p );
+		    
+		    if ( head != tmp )
+			current->next = tmp;
+		    current = tmp;
+		    tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
 		    connected = started = 0;
 		    continue;
 		}
 	    }
-	    if ( (p = strstr(line, PPPD_START)) != NULL )
-	    {	
-		fprintf(stderr, "%s", line);
-		fprintf(stderr, "warning: pppd was abnormally terminated on %s\n", tmp->start);
-		connected = 0;
-		p += strlen(PPPD_START) + 1;
-		/*tmp->user = */printf("\nuser: %s\n", strtok(p, " ,"));
-		continue; 	    
-	    }
 	    
 	}    
     }
-    		    		
+    
+    if ( current != tmp )
+	free(tmp);
+    fclose(pppdlog);
+			    		
     return (head);
 }
+
+void show_cons(struct connection *top)
+{
+    char str[LINE];
+
+    while ( top )
+    {
+	printf("\nuser:\t%s\n", top->user);
+	printf("ISP:\t%s\n", top->isp);
+	strftime(str, LINE, "%b %e %T", top->start);
+	printf("start:\t%s\n", str);
+	str[0] = '\0';
+	strftime(str, LINE, "%b %e %T", top->end);
+	printf("end:\t%s\n", str);
+	printf("duration:\t%ld secs\n", top->dur);
+	printf("out:\t%ld\n", top->outbyte);
+	printf("in:\t%ld\n", top->inbyte);
+	printf("is con\t%d\n", top->iscon);
+	top = top->next;
+    }
+    printf("\ntotal starts of pppd: %d\n", cstat.total);
+    printf("failed to connect %d times\n", cstat.failed);
+    printf("pppd was %d times killed\n", cstat.killed);
+}
+
 void pack(char *file)
 {
     int pid, stat_loc;
 
+    pid = fork();
     if (pid == -1)
     {
     	perror("fork");
@@ -226,6 +284,112 @@ void unpack(char *file)
 	wait(&stat_loc);
 }
 
+struct tm * str2tm(char *str)
+{
+    struct tm *tme;
+    int i;
+    char *p;
+
+    tme = (struct tm *)calloc(1, sizeof(struct tm));
+
+    for (i = 0; i < 12; i++)
+	if ( !strncmp(str, month[i], 3) ) 
+	{    
+	    tme->tm_mon = i;
+	    break;
+	}
+    if ( i != tme->tm_mon )
+    {
+	fprintf(stderr, "Error: wrong date type in str2tm\n");    
+	exit(3);
+    }
+
+    p = str + 4;
+    tme->tm_mday = atoi( p );
+    
+    p += 3;
+    tme->tm_hour = atoi( p );
+    
+    p += 3;
+    tme->tm_min = atoi( p );
+    
+    p+= 3;
+    tme->tm_sec = atoi( p );
+    
+    return (tme);
+}
+
+void norm_cons(struct connection *top)
+{
+    struct connection *tmp, *prev = NULL;
+    long a, b, c, d;
+    double r;
+    char str[NAME];
+
+    while ( top )
+    {	if ( top->start->tm_mday != top->end->tm_mday)
+	{
+	    tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
+	    tmp->start = (struct tm *)calloc(1, sizeof(struct tm));
+	    tmp->end = (struct tm *)calloc(1, sizeof(struct tm));
+	    
+	    tmp->start->tm_mday = tmp->end->tm_mday = top->end->tm_mday;
+	    tmp->start->tm_mon = tmp->end->tm_mon = top->end->tm_mon;
+	    tmp->end->tm_sec = top->end->tm_sec;
+	    tmp->end->tm_min = top->end->tm_min;
+	    tmp->end->tm_hour = top->end->tm_hour;
+	    tmp->next = top->next;
+	    strcpy(tmp->user, top->user);
+	    strcpy(tmp->isp, top->isp);
+	    
+	    top->end->tm_sec = 59;
+	    top->end->tm_min = 59;
+	    top->end->tm_hour = 23;
+	    top->end->tm_mday = top->start->tm_mday;
+	    top->end->tm_mon = top->start->tm_mon;
+	    top->next = tmp;
+//I can't find better way to split transfered bytes, then to make a simple proportion	    
+	    a = tm2sec(top->start);
+	    b = tm2sec(top->end);
+	    c = tm2sec(tmp->start);
+	    d = tm2sec(tmp->end);
+	    
+	    r = (double)(d - c) / ( (d - c) + (b - a) );
+	    
+	    tmp->inbyte = lround( r * top->inbyte );
+	    tmp->outbyte = lround( r * top->outbyte );
+	    top->inbyte = lround( (1 - r) * top->inbyte );
+	    top->outbyte = lround( (1 - r) * top->outbyte );
+	}
+	top->dur = tm2sec(top->end) - tm2sec(top->start);
+	if (top->dur < 0)
+	{
+	    strftime(str, LINE, "%b %e %T", top->start);
+	    fprintf(stderr, "There was a mistake in your logs:\npppd session started on %s ", str);
+	    str[0] = '\0';
+	    strftime(str, LINE, "%b %e %T", top->end);
+	    fprintf(stderr, "and closed on %s.\n", str);
+	    fprintf(stderr, "I'll delete this connection 'cause of its useless.\nUse ntpd ;)\n");
+	    prev->next = top->next;
+	    free(top);
+	    top = prev;
+	}
+	prev = top;
+	top = top->next;
+    }
+}
+
+long tm2sec(struct tm *tme)
+{
+    return ( tme->tm_sec + tme->tm_min * 60 + tme->tm_hour * 3600 );
+}
+
+struct connection * mkprestat(struct connection *head)
+{
+    struct connection *top; 
+    return (top);
+}
+/*
 char * get_cur_date(int i, struct tm * tme)
 {
     char *s;
@@ -283,4 +447,4 @@ int inc_day(char * day)
     sprintf(day, "%s %d", mon, dy);
     return (dy == 1)? 1 : 0;
 }
-
+*/
