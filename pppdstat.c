@@ -59,7 +59,7 @@ void unpack(char *); //zip archive
 struct tm * str2tm(char *); //transform useless date string to convenient structure 
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
-struct connection * mkprestat(struct connection *); //make prestatistics
+void mkstat(struct connection *, char sep_user, char sep_isp); //make prestatistics
 //char * get_cur_date(int, struct tm *);
 //int inc_day(char * day);
 
@@ -68,6 +68,7 @@ int main(int argc, char *argv[] )
 	struct connection *head; //start of list of cons
  	char file[PATH];
   	int i;
+	char user = 0, isp = 1;
 
 	for (i = 5; i > 0; i--) 
 	{
@@ -84,6 +85,8 @@ int main(int argc, char *argv[] )
 	head = parse_logs();
 //	show_cons(head);
 	norm_cons(head);
+//	show_cons(head);
+	mkstat(head, user, isp);
 	show_cons(head);
 }
 
@@ -356,10 +359,10 @@ void norm_cons(struct connection *top)
 	    
 	    r = (double)(d - c) / ( (d - c) + (b - a) );
 	    
-	    tmp->inbyte = lround( r * top->inbyte );
-	    tmp->outbyte = lround( r * top->outbyte );
-	    top->inbyte = lround( (1 - r) * top->inbyte );
-	    top->outbyte = lround( (1 - r) * top->outbyte );
+	    tmp->inbyte = lrint( r * top->inbyte );
+	    tmp->outbyte = lrint( r * top->outbyte );
+	    top->inbyte = lrint( (1 - r) * top->inbyte );
+	    top->outbyte = lrint( (1 - r) * top->outbyte );
 	}
 	top->dur = tm2sec(top->end) - tm2sec(top->start);
 	if (top->dur < 0)
@@ -384,10 +387,38 @@ long tm2sec(struct tm *tme)
     return ( tme->tm_sec + tme->tm_min * 60 + tme->tm_hour * 3600 );
 }
 
-struct connection * mkprestat(struct connection *head)
+void mkstat(struct connection *head, char sep_user, char sep_isp)
 {
-    struct connection *top; 
-    return (top);
+    struct connection *day, *prev;
+    
+    while ( head )
+    {
+	day = head->next;
+	if ( !day )
+	    break;
+	prev = head;
+	
+	while ( day->start->tm_mday == head->start->tm_mday )
+	{
+	    if ( (!strcmp(head->user, day->user) || !sep_user) \
+		&& (!strcmp(head->isp, day->isp) || !sep_isp) )
+	    {
+		head->inbyte += day->inbyte;
+		head->outbyte += day->outbyte;
+		head->dur += day->dur;
+		head->iscon += day->iscon;
+		
+		prev->next = day->next;
+		free(day);
+		day = prev;
+	    }
+	    prev = day;
+	    day = day->next;
+	    if ( !day )
+		break;
+	}
+	head = head->next;
+    }
 }
 /*
 char * get_cur_date(int i, struct tm * tme)
