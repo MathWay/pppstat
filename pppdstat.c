@@ -54,6 +54,14 @@ struct cons //small stat on unsuccsessful connections
     int killed;
 } cstat = {0};
 
+struct flags //I found that there are too many flags to pass, so I made a structure;
+{
+    unsigned int user : 1;
+    unsigned int isp : 1;
+    unsigned int apart : 1;
+    unsigned int mounth : 1;
+};
+
 const char month[12][4] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
 void extract_logs(char *, char *); //extract logs fron info
@@ -66,8 +74,8 @@ void unpack(char *); //zip archive
 struct tm *str2tm(char *); //transform useless date string to convenient structure 
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
-struct connection *mkstat(struct connection *, char sep_user, char sep_isp, char apart); //make prestatistics
-void show_stat(struct connection *, char is_user, char is_isp); //print stats with
+struct connection *mkstat(struct connection *, struct flags *); //make prestatistics
+void show_stat(struct connection *, struct flags *); //print stats with
 //or without users/isp
 void statcpy(struct connection *dest, struct connection *source);//copy stat structure
 
@@ -79,8 +87,8 @@ int main(int argc, char *argv[] )
     struct connection *head, *top; //start of list of cons
     char file[PATH];
     int i;
-    char user = 0, isp = 0;
-
+    struct flags fl;
+    
     for (i = 5; i > 0; i--) 
     {
     	*file = '\0';
@@ -92,6 +100,12 @@ int main(int argc, char *argv[] )
 	    extract_logs(file, "a");
 	    pack(file);
     }
+    
+    fl.user = 0;
+    fl.isp = 0;
+    fl.apart = 0;
+    fl.mounth = 1;
+    
     extract_logs(LOGS, "a");
     head = parse_logs();
 #ifdef DEBUG
@@ -103,13 +117,13 @@ int main(int argc, char *argv[] )
     printf("\nSTAGE 2 - normalize connections:\n");
     show_cons(head);
 #endif
-    top = mkstat(head, user, isp, 0);
+    top = mkstat(head, &fl);
 #ifdef DEBUG
     printf("\nSTAGE 3 - counted specified stats (user=%d, isp=%d)per day:\n", user, isp);
     show_cons(top);
     fprintf(stderr, "STAGE 3 finished!\n");
 #endif
-    show_stat(head, user, isp);	
+    show_stat(head, &fl);	
 }
 
 void extract_logs(char *logfile, char *wmode)
@@ -147,7 +161,7 @@ void extract_logs(char *logfile, char *wmode)
     fclose(pppdlog);
 }
 
-struct connection * parse_logs()
+struct connection * parse_logs(void)
 {
     FILE *pppdlog;
     char msg[PATH], line[LINE], *p;
@@ -266,16 +280,19 @@ void show_cons(struct connection *top)
     printf("pppd was %d times killed\n", cstat.killed);
 }
 #endif
-void show_stat(struct connection *top, char is_user, char is_isp)
+void show_stat(struct connection *top, struct flags *f)
 {
     char str[LINE];
     
     while ( top )
     {
-	strftime(str, LINE, "%b %e", top->start);
+	if ( f->mounth )
+	    strftime(str, LINE, "%b", top->start);
+	else
+	    strftime(str, LINE, "%b %e", top->start);
 	printf("\n%s\n", str);
-	if ( is_user ) printf("user:\t\t%s\n", top->user);
-	if ( is_isp ) printf("isp:\t\t%s\n", top->isp);
+	if ( f->user ) printf("user:\t\t%s\n", top->user);
+	if ( f->isp ) printf("isp:\t\t%s\n", top->isp);
 	printf("in:\t\t%ld\n", top->inbyte);
 	printf("out:\t\t%ld\n", top->outbyte);
 	printf("time:\t\t%ld\n", top->dur);
@@ -427,16 +444,18 @@ long tm2sec(struct tm *tme)
     return ( tme->tm_sec + tme->tm_min * 60 + tme->tm_hour * 3600 );
 }
 
-struct connection *mkstat(struct connection *head, char sep_user, char sep_isp, char apart)
+struct connection *mkstat(struct connection *head, struct flags *f)
 {
     struct connection *day, *prev, *top, *cur, *tmp;
     
-    if ( apart )
+    if ( f->apart )
 	cur = top = (struct connection *)calloc(1, sizeof(struct connection));
-
+    else
+	top = head;
+	
     while ( head )
     {
-	if ( apart )
+	if ( f->apart )
 	    statcpy(cur, head);
 	
 	day = head->next;
@@ -444,12 +463,13 @@ struct connection *mkstat(struct connection *head, char sep_user, char sep_isp, 
 	    break;
 	prev = head;
 	
-	while ( day->start->tm_mday == head->start->tm_mday )
+	while ( f->mounth ? (day->start->tm_mon == head->start->tm_mon) :\
+			    (day->start->tm_mday == head->start->tm_mday) )
 	{
-	    if ( (!strcmp(head->user, day->user) || !sep_user) \
-		&& (!strcmp(head->isp, day->isp) || !sep_isp) )
+	    if ( (!strcmp(head->user, day->user) || !f->user) \
+		&& (!strcmp(head->isp, day->isp) || !f->isp) )
 	    {
-		if ( apart )
+		if ( f->apart )
 		{
 		    cur->inbyte += day->inbyte;
 		    cur->outbyte += day->outbyte;
@@ -473,7 +493,7 @@ struct connection *mkstat(struct connection *head, char sep_user, char sep_isp, 
 	    if ( !day )
 		break;
 	}
-	if ( apart )
+	if ( f->apart )
 	{
 	    tmp = cur;
 	    cur->next = (struct connection *)calloc(1, sizeof(struct connection));
@@ -484,7 +504,7 @@ struct connection *mkstat(struct connection *head, char sep_user, char sep_isp, 
 	
     }
     
-    if ( apart )
+    if ( f->apart )
     {    
 	tmp->next = NULL;
 	free(cur);
