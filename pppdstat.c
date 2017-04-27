@@ -1,6 +1,6 @@
 //Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
-#define VERSION "0.3.2"
+#define VERSION "0.3.3"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -333,24 +333,30 @@ void show_cons(struct connection *top)
 
 void show_stat(struct connection *top, struct flags *f)
 {
-    char str[LINE];
+    char str[LINE], str1[16];
     
     while ( top )
     {
+        strftime(str, LINE, "%b %e", top->start);
 	if ( f->mounth )
-	    strftime(str, LINE, "%b", top->start);
-	else
-	    strftime(str, LINE, "%b %e", top->start);
+	{
+	    sprintf(str1, " - %d", top->end);
+	    strcat( str, str1 );
+	}
 	printf("\nPeriod:\t\t%s\n", str);
 	if ( f->user ) printf("user:\t\t%s\n", top->user);
 	if ( f->isp ) printf("isp IP:\t\t%s\n", top->isp);
 	if (f->human )
 	{
-	    printf("in:\t\t%.2f Mbytes\n", (float)top->inbyte / (1024 * 1024) );
-	    printf("out:\t\t%.2f Mbytes\n", (float)top->outbyte / (1024 * 1024) );
-	    top->end->tm_sec = top->dur;
-	    sec2tm(top->end);
-	    strftime(str, LINE, "%T", top->end);
+	    printf("in:\t\t%.2f %cbytes\n", (float)top->inbyte / \
+		    (1024 * (f->mounth ? 1024 : 1)), f->mounth ? 'M' : 'k' );
+	    printf("out:\t\t%.2f %cbytes\n", (float)top->outbyte / \
+		    (1024 * (f->mounth ? 1024 : 1)), f->mounth ? 'M' : 'k' );
+		    
+	    top->start->tm_sec = top->dur;
+	    
+	    sec2tm(top->start);
+	    strftime(str, LINE, "%T", top->start);
 	    printf("time:\t\t%s\n", str);
 	}
 	else
@@ -362,6 +368,9 @@ void show_stat(struct connection *top, struct flags *f)
 	printf("connects:\t%d\n", top->iscon);	
 	top = top->next;
     }
+    printf("\ntotal starts of pppd: %d\n", cstat.total);
+    printf("failed to connect %d times\n", cstat.failed);
+    printf("pppd was %d times killed\n", cstat.killed);
 }
 
 void pack(char *file)
@@ -555,6 +564,8 @@ struct connection *mkstat(struct connection *head, struct flags *f)
 		    cur->outbyte += day->outbyte;
 		    cur->dur += day->dur;
 		    cur->iscon += day->iscon;
+		    
+		    cur->end = day->start->tm_mday;
 		}
 		else
 		{
@@ -562,6 +573,8 @@ struct connection *mkstat(struct connection *head, struct flags *f)
 		    head->outbyte += day->outbyte;
 		    head->dur += day->dur;
 		    head->iscon += day->iscon;
+		    
+		    head->end = day->start->tm_mday;
 		}
 		
 		prev->next = day->next;

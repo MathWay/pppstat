@@ -1,4 +1,4 @@
-PPPstat version 0.3.2 Copyright (C) 2005 Matviychuk Oleg
+PPPstat version 0.3.3 Copyright (C) 2005 Matviychuk Oleg
 
 PPPstat aimed to collect a statistic of pppd sessions, based on pppd
 logs via syslogd. 
