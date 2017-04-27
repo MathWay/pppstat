@@ -1,4 +1,4 @@
-PPPstat version 0.4.2 Copyright (C) 2005 Matviychuk Oleg
+PPPstat version 0.5.0 Copyright (C) 2005 Matviychuk Oleg
 
 PPPstat aimed to collect a statistic of pppd sessions, based on pppd
 logs via syslogd. There is /usr/local/etc/pppstat.conf which contains
