@@ -1,6 +1,6 @@
 # Makefile for PPPDstat
 
-VERSION=0.3.3
+VERSION=0.4.0
 
 CC=gcc
 CFLAGS=-O2
@@ -10,7 +10,9 @@ LIBS=-lm
 #CFLAGS+=-ggdb
 
 TARGET=pppstat
+CONFIG=pppstat.conf
 INSTALL_DIR=/usr/local/bin
+CONFIG_DIR=/usr/local/etc
 SOURCES=pppdstat.c
 #DIST=${SOURCES} README Makefile ribbon.xpm VERSION COPYING AUTHORS
 #DIST_DIR=${TARGET}-${VERSION}
@@ -20,7 +22,7 @@ $(TARGET): ${SOURCES}
 
 install: ${TARGET}
 	cp -f ${TARGET} ${INSTALL_DIR}
-
+	cp -f ${CONFIG} ${CONFIG_DIR}
 #clean:
 #	rm -f $(TARGET) core
 
@@ -32,4 +34,5 @@ install: ${TARGET}
 
 uninstall: ${TARGET}
 	rm -f ${INSTALL_DIR}/${TARGET}
+	rm -f ${CONFIG_DIR}/${CONFIG}
 # EOF

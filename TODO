@@ -1,7 +1,6 @@
 What I intend to do:
 
-* Make PPPstat to differ ISPs with multiple modem pools by creating 
-  isp.conf, which would contain ISP name an all its pools' IPs
+* Make cost count
 
 * Find out more convinient output ;)
 

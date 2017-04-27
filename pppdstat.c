@@ -1,6 +1,6 @@
 //Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
-#define VERSION "0.3.3"
+#define VERSION "0.4.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,10 +26,14 @@
 #define PPPD_OUTBYTE "Sent" //Sent bytes
 #define PPPD_INBYTE "received" //Received bytes
 #define LOGROTATE "/etc/logrotate.d/ppp_stat" //file for logrotate. Not used
+#define CFG "/usr/local/etc/pppstat.conf" //here are located ISP configs
+#define ISPNAME "name="// line in CFG, from which we'll get ISP name 
+#define IP "IP="// line in CFG, from which we'll get ISP IP 
 
 #define PATH 128
 #define NAME 16
 #define LINE 256
+
 
 #define UNZIP "bunzip" //Eah, such a stupid way to get into archived files
 #define ZIP "bzip"
@@ -67,17 +71,24 @@ struct flags //I found that there are too many flags to pass, so I made a struct
     unsigned int human : 1;
 };
 
+struct isp //info about ISP modem pools to determine ISP
+{
+    char *name;
+    char *ip[NAME];
+    struct isp *next;
+};
+
 const char month[12][4] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
-void extract_logs(char *, char *); //extract logs fron info
+void extract_logs(void); //extract logs fron info
 struct connection * parse_logs(void); //parse extracted logs
 
 #ifdef DEBUG
 void show_cons(struct connection *); //show connections - for debug
 #endif
 
-void pack(char *); //unzip archive
-int unpack(char *); //zip archive
+void pack(char *); //zip archive
+void unpack(char *); //unzip archive
 struct tm *str2tm(char *); //transform useless date string to convenient structure 
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
@@ -86,13 +97,18 @@ struct connection *mkstat(struct connection *, struct flags *); //make prestatis
 void show_stat(struct connection *, struct flags *); //print stats with
 //or without users/isp
 void statcpy(struct connection *dest, struct connection *source);//copy stat structure
-void usage(void);//prints usage
+void usage(void);//prints usage and exit
+struct isp *get_isp(void); //get info about ISP modem pools from CFG file
+
+#ifdef DEBUG
+void show_isp(struct isp *); // shows the list
+#endif
+
+char *check_ip(char *, struct isp *); //checks, whether there is some ISP whith given IP
 
 int main(int argc, char *argv[] )
 {
     struct connection *head, *top; //start of list of cons
-    char file[PATH];
-    int i = 1, ex = 0;
     struct flags fl = {0, 0, 0, 0, 0};
     char ch;
     
@@ -124,35 +140,15 @@ int main(int argc, char *argv[] )
 	usage();		
     
 //extracting logs from archives
-    for (i = 5; i > 0; i--) 
-    {
-    	*file = '\0';
-	sprintf(file, "%s.%d", LOGS, i);
-	if ( !unpack(file) )
-	{
-	    fprintf(stderr, "Extracting...\n");
-	    
-	    if ( !ex )
-	    {
-		extract_logs(file, "w");
-		ex = 1;
-	    }
-	    else
-		extract_logs(file, "a");
-	    pack(file);
-	}
-    }
+
+    extract_logs();
     
 //lets roll!!    
 
-    if ( ex )
-	extract_logs(LOGS, "a");
-    else
-	extract_logs(LOGS, "w");
-	
     head = parse_logs();
     
 #ifdef DEBUG
+    showisp( getisp() );
     printf("\nSTAGE 1 - collected all connections:\n");
     show_cons(head);
 #endif
@@ -165,48 +161,117 @@ int main(int argc, char *argv[] )
 #endif
 
     top = mkstat(head, &fl);
-/*    
+
 #ifdef DEBUG
     printf("\nSTAGE 3 - counted specified stats (user=%d, isp=%d)per day:\n", fl.user, fl.isp);
     show_cons(top);
     fprintf(stderr, "STAGE 3 finished!\n");
 #endif
 
-*/    show_stat(head, &fl);	
+    show_stat(head, &fl);	
+    
+    
 }
 
-void extract_logs(char *logfile, char *wmode)
+void extract_logs(void)
 {
     FILE *log, *pppdlog;
-    char line[LINE], msg[PATH];
-
-    if ( (log = fopen(logfile, "r")) == NULL )
+    char line[LINE], msg[LINE] = {0};
+    char file[PATH];
+    int i, reach = 0;
+    
+    if ( (pppdlog = fopen(PPPD_LOG, "r+")) == NULL )
     {
-	strcpy(msg, "open ");
-	strcat(msg, logfile);
-	perror(msg);
-	exit(1);
+	if ( errno == ENOENT )
+	    pppdlog = fopen(PPPD_LOG, "a");
+	else
+	{
+	    strcpy(msg, "open ");
+	    strcat(msg, PPPD_LOG);
+	    perror(msg);
+	    exit(1);
+	}
+    }
+    else
+	while ( fgets(line, LINE - 1, pppdlog) )
+	    strcpy(msg, line);
+    
+    for (i = 5; i > 0; i--) 
+    {
+    	*file = '\0';
+	sprintf(file, "%s.%d", LOGS, i);
+	
+	unpack(file);
+	    
+	if ( (log = fopen(file, "r")) == NULL )
+	    if ( errno == ENOENT )
+		continue;
+	    else
+	    {
+		strcpy(msg, "open ");
+		strcat(msg, file);
+		perror(msg);
+		exit(1);
+	    }
+    
+	fprintf(stderr, "Extracting from %s ...\n", file);
+
+	while ( fgets(line, LINE-1, log) != NULL )
+	    if ( strstr(line, PPPD) != NULL )
+	        if ( !msg[0] || reach || !strcmp(line, msg)  )
+		{	
+		    if ( !reach && msg[0] )
+		    {
+		        reach = 1;
+		        continue;
+		    }
+		    
+		    if ( fputs(line, pppdlog) == EOF )
+		    {
+		        strcpy(msg, "write ");
+		        strcat(msg, PPPD_LOG);
+		        perror(msg);
+		        exit(2);
+		    }
+		}
+    
+	fclose(log);
+	
+	pack(file);
     }
     
-    if ( (pppdlog = fopen(PPPD_LOG, wmode)) == NULL )
+    *file = '\0';
+    sprintf(file, "%s", LOGS);
+    
+    if ( (log = fopen(file, "r")) == NULL )
     {
-	strcpy(msg, "open ");
-	strcat(msg, PPPD_LOG);
-	perror(msg);
-	exit(1);
+        strcpy(msg, "open ");
+        strcat(msg, file);
+        perror(msg);
+        exit(1);
     }
     
     while ( fgets(line, LINE-1, log) != NULL )
 	if ( strstr(line, PPPD) != NULL )
-	    if ( fputs(line, pppdlog) == EOF )
-	    {
-		strcpy(msg, "write ");
-		strcat(msg, PPPD_LOG);
-		perror(msg);
-		exit(2);
+	    if ( !msg[0] || reach || !strcmp(line, msg)  )
+	    {	
+	        if ( !reach && msg[0] )
+	        {
+		    reach = 1;
+		    continue;
+	    	}
+		    
+		if ( fputs(line, pppdlog) == EOF )
+		{
+		    strcpy(msg, "write ");
+		    strcat(msg, PPPD_LOG);
+		    perror(msg);
+		    exit(2);
+		}
 	    }
     
     fclose(log);
+	
     fclose(pppdlog);
 }
 
@@ -218,6 +283,10 @@ struct connection * parse_logs(void)
     char started = 0, connected = 0;
     
     struct tm *date;
+    
+    struct isp *isp_list;
+
+    isp_list = get_isp();
     
     head = tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
     current = NULL;
@@ -258,6 +327,8 @@ struct connection * parse_logs(void)
 		    connected = 1;
 		    p += strlen(ISP) + 1;
 		    strncpy(tmp->isp, strtok(p, " ,\n"), NAME-1);
+		    if ( p = check_ip(tmp->isp, isp_list) )
+			strncpy(tmp->isp, p, NAME-1);
 		    tmp->start = str2tm(line);
 		    continue;
 		}
@@ -393,7 +464,7 @@ void pack(char *file)
 	wait(&stat_loc);
 }
 
-int unpack(char *file)
+void unpack(char *file)
 {
     int pid, stat_loc;
     char path[PATH];
@@ -413,13 +484,7 @@ int unpack(char *file)
 	exit(4);
     }
     else
-    {
 	wait(&stat_loc);
-	if ( WIFEXITED(stat_loc) )
-	    return 0;
-	else
-	    return 1;
-    }
 }
 
 struct tm *str2tm(char *str)
@@ -633,3 +698,100 @@ void usage(void)
     putc('\n', stderr);
     exit(4);
 }
+
+struct isp *get_isp(void)
+{
+    FILE *cfg;
+    char line[LINE], *p, *p1;
+    struct isp *head, *isp = NULL;
+    int len, i;
+    
+    if ( (cfg = fopen(CFG, "r")) == NULL )
+    {
+	strcpy(line, "open ");
+	strcat(line, CFG);
+	perror(line);
+	exit(1);
+    }
+    
+    while ( fgets(line, LINE-1, cfg) != NULL  )
+    {
+	if ( line[0] == '#' ) continue;
+	if ( !(p = strstr(line, ISPNAME)) && !isp ) continue;
+	if ( p1 = strchr(line, '#') ) *p1 = '\0';
+	if ( p )
+	{
+	    if (!isp)
+		head = isp = (struct isp *)calloc( 1, sizeof(struct isp) );
+	    else
+		isp = isp->next = (struct isp *)calloc( 1, sizeof(struct isp) );
+		
+	    p += strlen(ISPNAME);
+	    
+	    if ( p1 = strchr(line, ';') ) 
+		len = p1 - p;
+	    else
+	    {
+		if ( p1 = strchr(p, ' ') ) *p1 = '\0';
+		len = strlen(p);
+	    }	    
+	    
+	    isp->name = (char *)calloc( 1, len );
+	    strncpy(isp->name, p, len);
+	    
+	    i = 0;
+	}
+	else if ( (p = strstr(line, IP)) )
+	{
+	    p += strlen(IP);
+	    if ( p1 = strchr(line, ';') ) 
+		len = p1 - p;
+	    else
+	    {
+		if ( p1 = strchr(p, ' ') ) *p1 = '\0';
+		len = strlen(p);
+	    }
+	    	
+	    isp->ip[i] = (char *)calloc( 1, len );
+	    strncpy(isp->ip[i], p, len);
+	    i++;
+	}
+    }
+    fclose (cfg);
+    
+    return (head);
+}		
+
+char *check_ip(char *ip, struct isp *top)
+{
+    int i;
+
+    while ( top )
+    {	
+	i = 0;
+	
+	while ( top->ip[i] )
+	    if ( !strcmp(ip, top->ip[i++]) ) 
+		return top->name;
+		
+	top = top->next;
+    }
+    
+    return NULL;
+}
+
+#ifdef DEBUG
+void show_isp(struct isp *top)
+{
+    int i = 0;
+    
+    while (top)
+    {
+	printf("\n%s\n", top->name);
+	while ( top->ip[i] )
+	    printf("%s\n", top->ip[i++]);
+	i = 0;
+	top = top->next;
+    }
+}
+#endif

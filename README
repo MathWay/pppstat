@@ -1,7 +1,10 @@
-PPPstat version 0.3.3 Copyright (C) 2005 Matviychuk Oleg
+PPPstat version 0.4.0 Copyright (C) 2005 Matviychuk Oleg
 
 PPPstat aimed to collect a statistic of pppd sessions, based on pppd
-logs via syslogd. 
+logs via syslogd. There is /usr/local/etc/pppstat.conf which contains
+IPs of modem pools of each ISP. It's intended to replace ugly IPs by
+ISP name. You are free to send me info about your ISPs and I'll include 
+them into the next releases. 
 
 Homepage http://mathway.narod.ru
 
@@ -10,12 +13,10 @@ LIMITATIONS
 Time counting depends on stability of your system clock, because 
 PPPstat uses time stamps of syslogd.
 
-Currently, ISP is differentiated by IP of remote host, that's why if 
-your ISP have multiple modem pools, they would be treated as different 
-ISPs.
-
 Probably won't work on machine, which works as dialup server - mixed 
 logs and so on.
+
+There is no documentation yet. You may help me with them ;)
 
 It was tried only on RH-based distributions.
 
