@@ -29,6 +29,9 @@
 #define UNZIP "bunzip" //Eah, such a stupid way to get into archived files
 #define ZIP "bzip"
 
+#define DEBUG
+#undef DEBUG
+
 struct connection //will contain info about every SUCCSESSFUL connection
 {
     char iscon; // to detect, is this connection, or tail of one after normalization
@@ -60,34 +63,46 @@ struct tm * str2tm(char *); //transform useless date string to convenient struct
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
 void mkstat(struct connection *, char sep_user, char sep_isp); //make prestatistics
+void show_stat(struct connection *, char is_user, char is_isp); //print stats with
+//or without users/isp
+
 //char * get_cur_date(int, struct tm *);
 //int inc_day(char * day);
 
 int main(int argc, char *argv[] )
 {
-	struct connection *head; //start of list of cons
- 	char file[PATH];
-  	int i;
-	char user = 0, isp = 1;
+    struct connection *head; //start of list of cons
+    char file[PATH];
+    int i;
+    char user = 0, isp = 0;
 
-	for (i = 5; i > 0; i--) 
-	{
-		*file = '\0';
-		sprintf(file, "%s.%d", LOGS, i);
-		unpack(file);
-		if ( i == 5 )
-			extract_logs(file, "w");
-		else
-			extract_logs(file, "a");
-		pack(file);
-	}
-	extract_logs(LOGS, "a");
-	head = parse_logs();
-//	show_cons(head);
-	norm_cons(head);
-//	show_cons(head);
-	mkstat(head, user, isp);
-	show_cons(head);
+    for (i = 5; i > 0; i--) 
+    {
+    	*file = '\0';
+	sprintf(file, "%s.%d", LOGS, i);
+	unpack(file);
+	if ( i == 5 )
+	    extract_logs(file, "w");
+	else
+	    extract_logs(file, "a");
+	    pack(file);
+    }
+    extract_logs(LOGS, "a");
+    head = parse_logs();
+#ifdef DEBUG
+    printf("STAGE 1 :\n");
+    show_cons(head);
+#endif
+    norm_cons(head);
+#ifdef DEBUG
+    printf("STAGE 2 :\n");
+    show_cons(head);
+#endif
+    mkstat(head, user, isp);
+#ifdef DEBUG
+    show_cons(head);
+#endif
+    show_stat(head, user, isp);	
 }
 
 void extract_logs(char *logfile, char *wmode)
@@ -219,7 +234,7 @@ struct connection * parse_logs()
 			    		
     return (head);
 }
-
+#ifdef DEBUG
 void show_cons(struct connection *top)
 {
     char str[LINE];
@@ -242,6 +257,24 @@ void show_cons(struct connection *top)
     printf("\ntotal starts of pppd: %d\n", cstat.total);
     printf("failed to connect %d times\n", cstat.failed);
     printf("pppd was %d times killed\n", cstat.killed);
+}
+#endif
+void show_stat(struct connection *top, char is_user, char is_isp)
+{
+    char str[LINE];
+    
+    while ( top )
+    {
+	strftime(str, LINE, "%b %e", top->start);
+	printf("\n%s\n", str);
+	if ( is_user ) printf("user:\t\t%s\n", top->user);
+	if ( is_isp ) printf("isp:\t\t%s\n", top->isp);
+	printf("in:\t\t%ld\n", top->inbyte);
+	printf("out:\t\t%ld\n", top->outbyte);
+	printf("time:\t\t%ld\n", top->dur);
+	printf("connects:\t%d\n", top->iscon);	
+	top = top->next;
+    }
 }
 
 void pack(char *file)
