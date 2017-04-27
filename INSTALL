@@ -1,0 +1,8 @@
+To install, do:
+
+make
+make install
+
+To uninstall:
+
+make uninstall

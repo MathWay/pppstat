@@ -1,5 +1,7 @@
 //Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
+#define VERSION "0.3"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -9,7 +11,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <math.h>
+#include <getopt.h>
 
 #define LOGS "/var/log/daemons/info" //here we can find pppd logs
 #define PPPD_LOG "/var/log/pppd.log" //here we'll place pppd logs
@@ -70,7 +74,7 @@ struct connection * parse_logs(void); //parse extracted logs
 void show_cons(struct connection *); //show connections - for debug
 #endif
 void pack(char *); //unzip archive
-void unpack(char *); //zip archive
+int unpack(char *); //zip archive
 struct tm *str2tm(char *); //transform useless date string to convenient structure 
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
@@ -78,35 +82,68 @@ struct connection *mkstat(struct connection *, struct flags *); //make prestatis
 void show_stat(struct connection *, struct flags *); //print stats with
 //or without users/isp
 void statcpy(struct connection *dest, struct connection *source);//copy stat structure
-
-//char * get_cur_date(int, struct tm *);
-//int inc_day(char * day);
+void usage(void);//prints usage
 
 int main(int argc, char *argv[] )
 {
     struct connection *head, *top; //start of list of cons
     char file[PATH];
-    int i;
-    struct flags fl;
+    int i = 1, ex = 0;
+    struct flags fl = {0, 0, 0, 0};
+    char ch;
     
+//getting command line
+
+    if ( argc > 1 )
+    {
+	while ( (ch = getopt(argc, argv, "mui")) != -1 )	
+    	    switch ( ch )
+	    {
+		case 'm':
+		    fl.mounth = 1;
+		    break;
+		case 'u':
+		    fl.user = 1;
+		    break;
+		case 'i':
+		    fl.isp = 1;
+		    break;
+		default:
+		    fprintf(stderr, "Bad option %c", ch);
+		    usage();
+	    }
+    }
+    else
+	usage();		
+    
+//extracting logs from archives
     for (i = 5; i > 0; i--) 
     {
     	*file = '\0';
 	sprintf(file, "%s.%d", LOGS, i);
-	unpack(file);
-	if ( i == 5 )
-	    extract_logs(file, "w");
-	else
-	    extract_logs(file, "a");
+	if ( !unpack(file) )
+	{
+	    fprintf(stderr, "Extracting...\n");
+	    
+	    if ( !ex )
+	    {
+		extract_logs(file, "w");
+		ex = 1;
+	    }
+	    else
+		extract_logs(file, "a");
 	    pack(file);
+	}
     }
     
-    fl.user = 0;
-    fl.isp = 0;
     fl.apart = 0;
-    fl.mounth = 1;
-    
-    extract_logs(LOGS, "a");
+//lets roll!!    
+
+    if ( ex )
+	extract_logs(LOGS, "a");
+    else
+	extract_logs(LOGS, "w");
+	
     head = parse_logs();
 #ifdef DEBUG
     printf("\nSTAGE 1 - collected all connections:\n");
@@ -210,7 +247,6 @@ struct connection * parse_logs(void)
 		    p += strlen(ISP) + 1;
 		    strncpy(tmp->isp, strtok(p, " ,\n"), NAME-1);
 		    tmp->start = str2tm(line);
-		    //strncpy(tmp->start, line, NAME-1);
 		    continue;
 		}
 		else if ( strstr(line, EXIT) != NULL )
@@ -226,7 +262,6 @@ struct connection * parse_logs(void)
 	    	if ( (strstr(line, PPPD_TIME)) != NULL )
 		{
 		    tmp->end = str2tm(line);
-		    //strncpy(tmp->end, line, NAME-1);
 		    continue;
 		}
 		else if ( (p = strstr(line, PPPD_OUTBYTE)) != NULL )
@@ -267,9 +302,9 @@ void show_cons(struct connection *top)
 	strftime(str, LINE, "%b %e %T", top->start);
 	printf("start:\t%s\n", str);
 	str[0] = '\0';
-/*	strftime(str, LINE, "%b %e %T", top->end);
+	strftime(str, LINE, "%b %e %T", top->end);
 	printf("end:\t%s\n", str);
-*/	printf("duration:\t%ld secs\n", top->dur);
+	printf("duration:\t%ld secs\n", top->dur);
 	printf("out:\t%ld\n", top->outbyte);
 	printf("in:\t%ld\n", top->inbyte);
 	printf("is con\t%d\n", top->iscon);
@@ -290,12 +325,12 @@ void show_stat(struct connection *top, struct flags *f)
 	    strftime(str, LINE, "%b", top->start);
 	else
 	    strftime(str, LINE, "%b %e", top->start);
-	printf("\n%s\n", str);
+	printf("\nPeriod:\t\t%s\n", str);
 	if ( f->user ) printf("user:\t\t%s\n", top->user);
-	if ( f->isp ) printf("isp:\t\t%s\n", top->isp);
-	printf("in:\t\t%ld\n", top->inbyte);
-	printf("out:\t\t%ld\n", top->outbyte);
-	printf("time:\t\t%ld\n", top->dur);
+	if ( f->isp ) printf("isp IP:\t\t%s\n", top->isp);
+	printf("in:\t\t%ld bytes\n", top->inbyte);
+	printf("out:\t\t%ld bytes\n", top->outbyte);
+	printf("time:\t\t%ld secs\n", top->dur);
 	printf("connects:\t%d\n", top->iscon);	
 	top = top->next;
     }
@@ -321,11 +356,11 @@ void pack(char *file)
 	wait(&stat_loc);
 }
 
-void unpack(char *file)
+int unpack(char *file)
 {
-    char path[PATH];
     int pid, stat_loc;
-
+    char path[PATH];
+    
     strcpy(path, file);
     strcat(path, ".bz2");
     pid = fork();
@@ -341,7 +376,13 @@ void unpack(char *file)
 	exit(4);
     }
     else
+    {
 	wait(&stat_loc);
+	if ( WIFEXITED(stat_loc) )
+	    return 0;
+	else
+	    return 1;
+    }
 }
 
 struct tm *str2tm(char *str)
@@ -526,62 +567,15 @@ void statcpy(struct connection *dest, struct connection *source)
     dest->start->tm_mon = source->start->tm_mon;
     dest->start->tm_mday = source->start->tm_mday;
 }
-/*
-char * get_cur_date(int i, struct tm * tme)
+
+void usage(void)
 {
-    char *s;
-    time_t t;
-    struct tm *ptm;
-
-    s = (char *)malloc(NAME);
-    t = time( NULL );
-    t += i*24*60*60;
-    tme = ptm = localtime( &t );
-    strftime(s, NAME -1, "%b %e", ptm );
-    return s;
+    fprintf(stderr, "\nPPPstat version %s\n", VERSION);
+    fprintf(stderr, "Distributed under GPL\n\n");
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "pppstat [-u] [-i] [-m]\n");
+    fprintf(stderr, "-u\tcounts all connections for each user per period\n");
+    fprintf(stderr, "-i\tcounts all connections for each ISP per period\n");
+    fprintf(stderr, "-m\tdefines period as mounth, otherwise as day\n\n");
+    exit(4);
 }
-
-char * add_day( int i, struct tm* tme)
-{
-    char *s;
-    time_t t;
-    struct tm *ptm;
-    
-    s = (char *)malloc(NAME);
-    t = mktime( tme );
-    t += i*24*60*60;
-    tme = ptm = localtime( &t );
-    strftime(s, NAME -1, "%b %e", ptm );
-    return s;
-}
-
-int inc_day(char * day)
-{
-    char * mon;
-    int dy;
-    
-    mon = strtok(day, " \t");
-
-    if (dy < 32)
-    	dy++;
-    else
-    {
-	dy = 1;
-	if (!strcmp(mon, "Jan")) strcpy(mon, "Feb");
-	if (!strcmp(mon, "Feb")) strcpy(mon, "Mar");
-	if (!strcmp(mon, "Mar")) strcpy(mon, "Apr");
-	if (!strcmp(mon, "Apr")) strcpy(mon, "May");
-	if (!strcmp(mon, "May")) strcpy(mon, "Jun");
-	if (!strcmp(mon, "Jun")) strcpy(mon, "Jul");
-	if (!strcmp(mon, "Jul")) strcpy(mon, "Aug");
-	if (!strcmp(mon, "Aug")) strcpy(mon, "Sep");
-	if (!strcmp(mon, "Sep")) strcpy(mon, "Oct");
-	if (!strcmp(mon, "Oct")) strcpy(mon, "Nov");
-	if (!strcmp(mon, "Nov")) strcpy(mon, "Dec");
-	if (!strcmp(mon, "Dec")) strcpy(mon, "Jan");
-    }
-
-    sprintf(day, "%s %d", mon, dy);
-    return (dy == 1)? 1 : 0;
-}
-*/

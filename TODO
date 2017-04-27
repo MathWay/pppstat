@@ -1,0 +1,12 @@
+What I intend to do:
+
+* Make PPPstat to differ ISPs with multiple modem pools by creating 
+  isp.conf, which would contain ISP name an all its pools' IPs
+
+* Find out more convinient output ;)
+
+* Make reading from archived log via zlib
+
+* Fix, fix, fix...
+
+Ask more! ( (C) Pepsi )
