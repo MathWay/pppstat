@@ -22,7 +22,7 @@
 #define ISP "remote IP address" //ISP detecting
 #define TIME "Connect time" //time from pppd
 #define EXIT "Exit." //Cases, when pppd failed to connect
-#define PPPD_TIME "Connect time" //Self explaining. Now not used
+#define PPPD_TIME "Connect time" //Self explaining. 
 #define PPPD_OUTBYTE "Sent" //Sent bytes
 #define PPPD_INBYTE "received" //Received bytes
 #define LOGROTATE "/etc/logrotate.d/ppp_stat" //file for logrotate. Not used
@@ -39,13 +39,13 @@
 
 struct connection //will contain info about every SUCCSESSFUL connection
 {
-    char iscon; // to detect, is this connection, or tail of one after normalization
+    int iscon; // to detect, is this connection, or tail of one after normalization
     char user[NAME]; //user name
     char isp[NAME]; //ISP IP				<<--
     struct tm *start; //when begin
     struct tm *end; //when end
     long dur; //duration of connection in secs
-    float pppd_dur; //that, reported by pppd
+    long pppd_dur; //that, reported by pppd
     long inbyte;
     long outbyte;
     struct connection *next;
@@ -53,10 +53,10 @@ struct connection //will contain info about every SUCCSESSFUL connection
 
 struct cons //small stat on unsuccsessful connections
 {
-    int total;
+    long total;
     int failed;
     int killed;
-} cstat = {0};
+} cstat = {0, 0, 0};
 
 struct flags //I found that there are too many flags to pass, so I made a structure;
 {
@@ -145,22 +145,28 @@ int main(int argc, char *argv[] )
 	extract_logs(LOGS, "w");
 	
     head = parse_logs();
+    
 #ifdef DEBUG
     printf("\nSTAGE 1 - collected all connections:\n");
     show_cons(head);
 #endif
+
     norm_cons(head);
+    
 #ifdef DEBUG
     printf("\nSTAGE 2 - normalize connections:\n");
     show_cons(head);
 #endif
+
     top = mkstat(head, &fl);
+/*    
 #ifdef DEBUG
-    printf("\nSTAGE 3 - counted specified stats (user=%d, isp=%d)per day:\n", user, isp);
+    printf("\nSTAGE 3 - counted specified stats (user=%d, isp=%d)per day:\n", fl.user, fl.isp);
     show_cons(top);
     fprintf(stderr, "STAGE 3 finished!\n");
 #endif
-    show_stat(head, &fl);	
+
+*/    show_stat(head, &fl);	
 }
 
 void extract_logs(char *logfile, char *wmode)
@@ -259,8 +265,9 @@ struct connection * parse_logs(void)
 	    }
 	    else
 	    {
-	    	if ( (strstr(line, PPPD_TIME)) != NULL )
+	    	if ( ( (p = strstr(line, PPPD_TIME)) ) != NULL )
 		{
+		    tmp->pppd_dur = (long)( 60 * atof(p + strlen(PPPD_TIME)) );
 		    tmp->end = str2tm(line);
 		    continue;
 		}
@@ -304,7 +311,8 @@ void show_cons(struct connection *top)
 	str[0] = '\0';
 	strftime(str, LINE, "%b %e %T", top->end);
 	printf("end:\t%s\n", str);
-	printf("duration:\t%ld secs\n", top->dur);
+	printf("pd_dur:\t%ld secs\n", top->pppd_dur);
+	printf("dur:\t%ld secs\n", top->dur);
 	printf("out:\t%ld\n", top->outbyte);
 	printf("in:\t%ld\n", top->inbyte);
 	printf("is con\t%d\n", top->iscon);
@@ -426,11 +434,12 @@ void norm_cons(struct connection *top)
     long a, b, c, d;
     double r;
     char str[NAME];
+    char unpunct = 0;
 
     while ( top )
     {	if ( top->start->tm_mday != top->end->tm_mday)
 	{
-	    tmp = (struct connection *) calloc( 1, sizeof(struct connection) );
+	    tmp = (struct connection *)calloc( 1, sizeof(struct connection) );
 	    tmp->start = (struct tm *)calloc(1, sizeof(struct tm));
 	    tmp->end = (struct tm *)calloc(1, sizeof(struct tm));
 	    
@@ -459,21 +468,23 @@ void norm_cons(struct connection *top)
 	    
 	    tmp->inbyte = lrint( r * top->inbyte );
 	    tmp->outbyte = lrint( r * top->outbyte );
+	    tmp->pppd_dur = lrint( r * top->pppd_dur );
+	    
 	    top->inbyte = lrint( (1 - r) * top->inbyte );
 	    top->outbyte = lrint( (1 - r) * top->outbyte );
+	    top->pppd_dur = lrint( (1 - r) * top->pppd_dur );
 	}
+	
 	top->dur = tm2sec(top->end) - tm2sec(top->start);
-	if (top->dur < 0)
+	if ( labs(top->dur - top->pppd_dur) > 3)
 	{
-	    strftime(str, LINE, "%b %e %T", top->start);
-	    fprintf(stderr, "There was a mistake in your logs:\npppd session started on %s ", str);
-	    str[0] = '\0';
-	    strftime(str, LINE, "%b %e %T", top->end);
-	    fprintf(stderr, "and closed on %s.\n", str);
-	    fprintf(stderr, "I'll delete this connection 'cause of its useless.\nUse ntpd ;)\n");
-	    prev->next = top->next;
-	    free(top);
-	    top = prev;
+	    if ( !unpunct )
+	    {
+		fprintf(stderr, "\nYour logs aren't punctual. I'll use time, reported by pppd, this may cause 3sec deviation.\n");
+		fprintf(stderr, "Use ntpd ;)\n");
+		unpunct = 1;
+	    }
+	    top->dur = top->pppd_dur;
 	}
 	prev = top;
 	top = top->next;

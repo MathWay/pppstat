@@ -1,2 +1,6 @@
+0.3.1
+    - added advanced time checking: compare time counted from logs and
+      that, reported by pppd.
+
 0.3.0
     - added command line options
