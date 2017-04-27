@@ -1,21 +1,27 @@
-0.4.1 2005-04-30
-    - fixed some bugs
-     
-0.4.0 2005-01-13
-    - added pppstat.conf, in which info about moden pools' IPs of each ISP is located
-    - upgraded -h option - printing Mbytes or kbytes depending on period (-m) 
-    
-0.3.3 2005-01-07
-    - period is shown with -m
+2006-01-07  Matviychuk Oleg <mathway@narod.ru>  
+	* output.c: added humanize_size() to make pretty output while -h invoked.
 
-0.3.2 2005-01-03
-    - added -h option
+2006-01-06  Matviychuk Oleg <mathway@narod.ru>
+	* filework.c: added some code for determining where system logs are - find_log().
+	* output.c: completely rewriten show_stat() to improve output.
+	  Inspired by ppplag.
 
-0.3.1 2004-12-24
-    - added advanced time checking: compare time counted from logs and
-      that, reported by pppd.
+2005-12-13  Matviychuk Oleg <mathway@narod.ru>
+	* main.c: getopt_long invoked.
+	* output.c: version() added.
 
-0.3.0 2004-12-19
-    - first public release
-    - added command line options
-    
+2005-12-04  Matviychuk Oleg <mathway@narod.ru>
+	* ChangeLog: created ;)
+	* filework.c: was stolen file_exists_p() from wget.
+	  Thanks Hrvoje Niksic.
+
+2005-autumn Matviychuk Oleg <mathway.narod.ru>
+
+	* filework.c: was found strange bug in gcc <= 3.3.5. That's why
+	  I was forced to use sscanf() instead of atof() while parsing logs.
+
+2005-summer Matviychuk Oleg <mathway.narod.ru>
+
+	* Source was splitted into 4 files.
+	* Now I can call PPPstat GNU compatible - it uses autotools.
+	* Implemented usage of gettext().
