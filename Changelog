@@ -1,3 +1,6 @@
+0.3.2
+    - added -h option
+
 0.3.1
     - added advanced time checking: compare time counted from logs and
       that, reported by pppd.

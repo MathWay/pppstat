@@ -1,6 +1,6 @@
 # Makefile for PPPDstat
 
-VERSION=0.3.1
+VERSION=0.3.2
 
 CC=gcc
 CFLAGS=-O2

@@ -1,6 +1,6 @@
 //Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
-#define VERSION "0.3"
+#define VERSION "0.3.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,20 +64,24 @@ struct flags //I found that there are too many flags to pass, so I made a struct
     unsigned int isp : 1;
     unsigned int apart : 1;
     unsigned int mounth : 1;
+    unsigned int human : 1;
 };
 
 const char month[12][4] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
 void extract_logs(char *, char *); //extract logs fron info
 struct connection * parse_logs(void); //parse extracted logs
+
 #ifdef DEBUG
 void show_cons(struct connection *); //show connections - for debug
 #endif
+
 void pack(char *); //unzip archive
 int unpack(char *); //zip archive
 struct tm *str2tm(char *); //transform useless date string to convenient structure 
 void norm_cons(struct connection *); //divide connections, is they spread on few days
 long tm2sec(struct tm *); //convert time in tm to seconds
+void sec2tm(struct tm *); //normalize time in structure
 struct connection *mkstat(struct connection *, struct flags *); //make prestatistics
 void show_stat(struct connection *, struct flags *); //print stats with
 //or without users/isp
@@ -89,14 +93,14 @@ int main(int argc, char *argv[] )
     struct connection *head, *top; //start of list of cons
     char file[PATH];
     int i = 1, ex = 0;
-    struct flags fl = {0, 0, 0, 0};
+    struct flags fl = {0, 0, 0, 0, 0};
     char ch;
     
 //getting command line
 
     if ( argc > 1 )
     {
-	while ( (ch = getopt(argc, argv, "mui")) != -1 )	
+	while ( (ch = getopt(argc, argv, "muih")) != -1 )	
     	    switch ( ch )
 	    {
 		case 'm':
@@ -107,6 +111,9 @@ int main(int argc, char *argv[] )
 		    break;
 		case 'i':
 		    fl.isp = 1;
+		    break;
+		case 'h':
+		    fl.human = 1;
 		    break;
 		default:
 		    fprintf(stderr, "Bad option %c", ch);
@@ -136,7 +143,6 @@ int main(int argc, char *argv[] )
 	}
     }
     
-    fl.apart = 0;
 //lets roll!!    
 
     if ( ex )
@@ -297,6 +303,7 @@ struct connection * parse_logs(void)
 			    		
     return (head);
 }
+
 #ifdef DEBUG
 void show_cons(struct connection *top)
 {
@@ -323,6 +330,7 @@ void show_cons(struct connection *top)
     printf("pppd was %d times killed\n", cstat.killed);
 }
 #endif
+
 void show_stat(struct connection *top, struct flags *f)
 {
     char str[LINE];
@@ -336,9 +344,21 @@ void show_stat(struct connection *top, struct flags *f)
 	printf("\nPeriod:\t\t%s\n", str);
 	if ( f->user ) printf("user:\t\t%s\n", top->user);
 	if ( f->isp ) printf("isp IP:\t\t%s\n", top->isp);
-	printf("in:\t\t%ld bytes\n", top->inbyte);
-	printf("out:\t\t%ld bytes\n", top->outbyte);
-	printf("time:\t\t%ld secs\n", top->dur);
+	if (f->human )
+	{
+	    printf("in:\t\t%.2f Mbytes\n", (float)top->inbyte / (1024 * 1024) );
+	    printf("out:\t\t%.2f Mbytes\n", (float)top->outbyte / (1024 * 1024) );
+	    top->end->tm_sec = top->dur;
+	    sec2tm(top->end);
+	    strftime(str, LINE, "%T", top->end);
+	    printf("time:\t\t%s\n", str);
+	}
+	else
+	{
+	    printf("in:\t\t%ld bytes\n", top->inbyte);
+	    printf("out:\t\t%ld bytes\n", top->outbyte);
+	    printf("time:\t\t%ld secs\n", top->dur);
+	}
 	printf("connects:\t%d\n", top->iscon);	
 	top = top->next;
     }
@@ -496,6 +516,14 @@ long tm2sec(struct tm *tme)
     return ( tme->tm_sec + tme->tm_min * 60 + tme->tm_hour * 3600 );
 }
 
+void sec2tm(struct tm *tme)
+{
+    tme->tm_min = tme->tm_sec / 60;
+    tme->tm_sec = tme->tm_sec % 60;
+    
+    tme->tm_hour = tme->tm_min / 60;
+    tme->tm_min = tme->tm_min % 60;
+}
 struct connection *mkstat(struct connection *head, struct flags *f)
 {
     struct connection *day, *prev, *top, *cur, *tmp;
@@ -581,12 +609,14 @@ void statcpy(struct connection *dest, struct connection *source)
 
 void usage(void)
 {
-    fprintf(stderr, "\nPPPstat version %s\n", VERSION);
-    fprintf(stderr, "Distributed under GPL\n\n");
+    fprintf(stderr, "\nPPPstat version %s. mathway.narod.ru\n", VERSION);
+    fprintf(stderr, "Distributed under GPL.\n\n");
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "pppstat [-u] [-i] [-m]\n");
+    fprintf(stderr, "pppstat [-u] [-i] [-m] [-h]\n");
     fprintf(stderr, "-u\tcounts all connections for each user per period\n");
     fprintf(stderr, "-i\tcounts all connections for each ISP per period\n");
-    fprintf(stderr, "-m\tdefines period as mounth, otherwise as day\n\n");
+    fprintf(stderr, "-m\tdefines period as mounth, otherwise as day\n");
+    fprintf(stderr, "-h\tmakes human-readable output\n");
+    putc('\n', stderr);
     exit(4);
 }
