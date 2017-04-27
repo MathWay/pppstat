@@ -1,0 +1,14 @@
+// config.h.in -> config.h
+
+#define VERSION "@PACKAGE_VERSION@"
+
+#define BUNZIP "@BUNZIP@" //Eah, such a stupid way to get into archived files
+#define BZIP "@BZIP@"
+
+#define GUNZIP "@GUNZIP@"
+#define GZIP "@GZIP@"
+
+#define PACKAGE "@PACKAGE@"
+
+// FIIXME:
+#define CFG "/usr/local/etc/pppstat.conf" //here are located ISP configs

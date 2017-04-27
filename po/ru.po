@@ -1,0 +1,286 @@
+# Language =ru translations for PPPstat package.
+# Copyright (C) 2006 Mathway
+# This file is distributed under the same license as the PPPstat package.
+# Matviychuk Oleg <mathway@narod.ru> <mathway@narod.ru>, 2006.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PPPstat 0.5.0\n"
+"Report-Msgid-Bugs-To: mathway@narod.ru\n"
+"POT-Creation-Date: 2006-01-08 12:13+0200\n"
+"PO-Revision-Date: 2006-01-08 00:52+0200\n"
+"Last-Translator: Matviychuk Oleg <mathway@narod.ru>\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/main.c:63
+#, c-format
+msgid "Bad option %c\n"
+msgstr "Неверная опция %c\n"
+
+#: src/main.c:81
+#, c-format
+msgid ""
+"\n"
+"STAGE 1 - collected all connections:\n"
+msgstr ""
+"\n"
+"ЭТАП 1 - собраны все соединения:\n"
+
+#: src/main.c:89
+#, c-format
+msgid ""
+"\n"
+"STAGE 2 - normalize connections:\n"
+msgstr ""
+"\n"
+"ЭТАП 2 - соединения нормализированны:\n"
+
+#: src/main.c:98
+#, c-format
+msgid ""
+"\n"
+"STAGE 3 - counted specified stats (user=%d, isp=%d)per day:\n"
+msgstr ""
+"\n"
+"ЭТАП 3 - посчитана запрошенная статистика (user=%d, isp=%d)по дням:\n"
+
+#: src/main.c:100
+#, c-format
+msgid "STAGE 3 finished!\n"
+msgstr "ЭТАП 3 завершен!\n"
+
+#: src/filework.c:56 src/filework.c:82 src/filework.c:119 src/filework.c:169
+#: src/filework.c:339 src/filework.c:481 src/filework.c:513
+msgid "open "
+msgstr "открытие "
+
+#: src/filework.c:88 src/filework.c:125
+#, c-format
+msgid "Extracting from %s ...\n"
+msgstr "Анализирую %s ...\n"
+
+#: src/filework.c:102 src/filework.c:139
+msgid "write "
+msgstr "запись "
+
+#: src/filework.c:436
+#, c-format
+msgid "Error: wrong date type in str2tm\n"
+msgstr "Ошибка: неверный формат даты в str2tm\n"
+
+#: src/filework.c:500
+#, c-format
+msgid "Warning: failed to parse %s, falling to defaults. Bugrepot, please.\n"
+msgstr ""
+"Внимание! Ошибка анализа %s, использую умолчание. Пожалуйста, напишите "
+"отчет.\n"
+
+#: src/output.c:15
+#, c-format
+msgid ""
+"\n"
+"user:\t%s\n"
+msgstr ""
+"\n"
+"пользователь:\t%s\n"
+
+#: src/output.c:16
+#, c-format
+msgid "ISP:\t%s\n"
+msgstr "Провайдер:\t%s\n"
+
+#: src/output.c:18
+#, c-format
+msgid "start:\t%s\n"
+msgstr "начало:\t%s\n"
+
+#: src/output.c:21
+#, c-format
+msgid "end:\t%s\n"
+msgstr "конец:\t%s\n"
+
+#: src/output.c:22
+#, c-format
+msgid "pd_dur:\t%ld secs\n"
+msgstr "время по pppd:\t%ld секунд\n"
+
+#: src/output.c:23
+#, c-format
+msgid "dur:\t%ld secs\n"
+msgstr "время:\t%ld секунд\n"
+
+#: src/output.c:24
+#, c-format
+msgid "out:\t%ld\n"
+msgstr "передано:\t%ld\n"
+
+#: src/output.c:25
+#, c-format
+msgid "in:\t%ld\n"
+msgstr "принято:\t%ld\n"
+
+#: src/output.c:26
+#, c-format
+msgid "is con\t%d\n"
+msgstr "соединений\t%d\n"
+
+#: src/output.c:29 src/output.c:83
+#, c-format
+msgid ""
+"\n"
+"total starts of pppd: %d\n"
+msgstr ""
+"\n"
+"общее количество запусков pppd: %d\n"
+
+#: src/output.c:30 src/output.c:84
+#, c-format
+msgid "failed to connect %d times\n"
+msgstr "не вышло соединится %d раз\n"
+
+#: src/output.c:31
+#, c-format
+msgid "pppd was %d times killed\n"
+msgstr "pppd был принудительно остановлен %d раз\n"
+
+#: src/output.c:39
+msgid "period"
+msgstr "период"
+
+#: src/output.c:40
+msgid "user"
+msgstr "юзер"
+
+#: src/output.c:41
+msgid "ISP"
+msgstr "провайдер"
+
+#: src/output.c:42
+msgid "in, bytes"
+msgstr "принято"
+
+#: src/output.c:42
+msgid "out, bytes"
+msgstr "передано"
+
+#: src/output.c:42
+msgid "time"
+msgstr "время"
+
+#: src/output.c:42
+msgid "connects"
+msgstr "соединений"
+
+#: src/output.c:85
+#, c-format
+msgid ""
+"pppd was %d times killed\n"
+"\n"
+msgstr ""
+"pppd был принудительно остановлен %d раз\n"
+"\n"
+
+#: src/output.c:93
+#, c-format
+msgid ""
+"\n"
+"PPPstat version %s. http://pppstat.sourceforge.net\n"
+msgstr ""
+"\n"
+"PPPstat, версия %s. http://pppstat.sourceforge.net\n"
+
+#: src/output.c:94
+#, c-format
+msgid ""
+"Distributed under GPL.\n"
+"\n"
+msgstr ""
+"Распостраняется под лицензией GPL.\n"
+"\n"
+
+#: src/output.c:95
+#, c-format
+msgid ""
+"Usage:\n"
+"\n"
+msgstr ""
+"Использование:\n"
+"\n"
+
+#: src/output.c:96
+#, c-format
+msgid ""
+"pppstat [option]\n"
+"\n"
+msgstr ""
+
+#: src/output.c:97
+#, c-format
+msgid "-u, --user\tcounts all connections for each user per period\n"
+msgstr "-u, --user\tподсчитать все соединения по пользователям, за период\n"
+
+#: src/output.c:98
+#, c-format
+msgid "-i, --isp\tcounts all connections for each ISP per period\n"
+msgstr "-i, --isp\tподсчитать все соединения по провайдерам, за период\n"
+
+#: src/output.c:99
+#, c-format
+msgid "-m, --month\tdefines period as mounth, otherwise as day\n"
+msgstr "-m, --month\tопределяет период в месяц, иначе - в день\n"
+
+#: src/output.c:100
+#, c-format
+msgid "-h, --human\tmakes human-readable output\n"
+msgstr "-h, --human\tустанавливает удобный для чтения вывод\n"
+
+#: src/output.c:101
+#, c-format
+msgid ""
+"-d, --debug\tdebug mode, VERY verbose, be carefull, curently SEGFAULT ;)\n"
+msgstr ""
+"-d, --debug\tрежим отладки, осторожно: ОЧЕНЬ подробный, вылетает с "
+"SEGFAULT ;)\n"
+
+#: src/output.c:102
+#, c-format
+msgid "-v, --version\tprogram verson\n"
+msgstr "-v, --version\tверсия программы\n"
+
+#: src/output.c:103
+#, c-format
+msgid "-H, --help\tthis screen\n"
+msgstr "-H, --help\tэто сообщение\n"
+
+#: src/output.c:110
+#, c-format
+msgid "PPPstat versoin %s\n"
+msgstr "PPPstat, версия %s\n"
+
+#: src/stat.c:61
+#, c-format
+msgid ""
+"\n"
+"Your logs aren't punctual. I'll use time, reported by pppd, this may cause "
+"3sec deviation.\n"
+msgstr ""
+"\n"
+"Временные метки в ваших логах неточные. Я использую время, сообщенное pppd, "
+"это может привести к неточности в 3 секунды.\n"
+
+#: src/stat.c:62
+#, c-format
+msgid ""
+"Use ntpd ;)\n"
+"\n"
+msgstr ""
+"Используйте ntpd ;)\n"
+"\n"
+
+#: src/stat.c:68
+#, c-format
+msgid "Some connects have negative time. Making it 0. \n"
+msgstr "Длительность некоторых соединений отрицательна. Сбрасываю их в 0. \n"

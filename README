@@ -1,4 +1,4 @@
-PPPstat version 0.4.1 Copyright (C) 2005 Matviychuk Oleg
+PPPstat version 0.4.2 Copyright (C) 2005 Matviychuk Oleg
 
 PPPstat aimed to collect a statistic of pppd sessions, based on pppd
 logs via syslogd. There is /usr/local/etc/pppstat.conf which contains
@@ -17,7 +17,5 @@ Probably won't work on machine, which works as dialup server - mixed
 logs and so on.
 
 There is no documentation yet. You may help me with it ;)
-
-It was tried only on RH-based distributions.
 
 You are free to send bugreports on <mathway@narod.ru>

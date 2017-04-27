@@ -1,0 +1,5 @@
+# List of source files which contain translatable strings.
+src/main.c
+src/filework.c
+src/output.c
+src/stat.c

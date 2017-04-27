@@ -1,0 +1,4 @@
+#!/bin/sh
+# PPPstat log update
+
+pppstat -hm > /dev/null
