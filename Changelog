@@ -1,21 +1,21 @@
-0.4.1
+0.4.1 2005-04-30
     - fixed some bugs
      
-0.4.0
+0.4.0 2005-01-13
     - added pppstat.conf, in which info about moden pools' IPs of each ISP is located
     - upgraded -h option - printing Mbytes or kbytes depending on period (-m) 
     
-0.3.3
+0.3.3 2005-01-07
     - period is shown with -m
 
-0.3.2
+0.3.2 2005-01-03
     - added -h option
 
-0.3.1
+0.3.1 2004-12-24
     - added advanced time checking: compare time counted from logs and
       that, reported by pppd.
 
-0.3.0
+0.3.0 2004-12-19
     - first public release
     - added command line options
     

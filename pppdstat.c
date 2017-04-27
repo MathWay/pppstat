@@ -15,7 +15,7 @@
 #include <math.h>
 #include <getopt.h>
 
-#define LOGS "/var/log/daemons/info" //here we can find pppd logs
+#define LOGS "/var/log/messages" //here we can find pppd logs
 #define PPPD_LOG "/var/log/pppd.log" //here we'll place pppd logs
 #define PPPD "pppd[" //all strings from pppd
 #define PPPD_START "started by" //after this we can find user name
@@ -36,8 +36,8 @@
 #define LINE 256
 
 
-#define UNZIP "bunzip" //Eah, such a stupid way to get into archived files
-#define ZIP "bzip"
+#define UNZIP "bunzip2" //Eah, such a stupid way to get into archived files
+#define ZIP "bzip2"
 
 #define DEBUG
 #undef DEBUG
