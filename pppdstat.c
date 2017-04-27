@@ -1,6 +1,6 @@
 //Parser of pppd logs. Makes stats of connections by user,ISP etc.
 
-#define VERSION "0.4.0"
+#define VERSION "0.4.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +29,7 @@
 #define CFG "/usr/local/etc/pppstat.conf" //here are located ISP configs
 #define ISPNAME "name="// line in CFG, from which we'll get ISP name 
 #define IP "IP="// line in CFG, from which we'll get ISP IP 
+#define FROM "from " // line in CFG, from which we'll get ISP costs
 
 #define PATH 128
 #define NAME 16
@@ -71,12 +72,21 @@ struct flags //I found that there are too many flags to pass, so I made a struct
     unsigned int human : 1;
 };
 
+struct period 
+{
+    char from;
+    char till;
+    float cost;
+};
+
 struct isp //info about ISP modem pools to determine ISP
 {
     char *name;
     char *ip[NAME];
+    struct period *price[NAME];
     struct isp *next;
 };
+
 
 const char month[12][4] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
@@ -251,6 +261,8 @@ void extract_logs(void)
         exit(1);
     }
     
+    fprintf(stderr, "Extracting from %s ...\n", file);
+    
     while ( fgets(line, LINE-1, log) != NULL )
 	if ( strstr(line, PPPD) != NULL )
 	    if ( !msg[0] || reach || !strcmp(line, msg)  )
@@ -411,12 +423,14 @@ void show_stat(struct connection *top, struct flags *f)
         strftime(str, LINE, "%b %e", top->start);
 	if ( f->mounth )
 	{
+	    if (top->iscon == 1)
+		top->end = top->start->tm_mday;
 	    sprintf(str1, " - %d", top->end);
 	    strcat( str, str1 );
 	}
 	printf("\nPeriod:\t\t%s\n", str);
 	if ( f->user ) printf("user:\t\t%s\n", top->user);
-	if ( f->isp ) printf("isp IP:\t\t%s\n", top->isp);
+	if ( f->isp ) printf("ISP:\t\t%s\n", top->isp);
 	if (f->human )
 	{
 	    printf("in:\t\t%.2f %cbytes\n", (float)top->inbyte / \
@@ -441,7 +455,7 @@ void show_stat(struct connection *top, struct flags *f)
     }
     printf("\ntotal starts of pppd: %d\n", cstat.total);
     printf("failed to connect %d times\n", cstat.failed);
-    printf("pppd was %d times killed\n", cstat.killed);
+    printf("pppd was %d times killed\n\n", cstat.killed);
 }
 
 void pack(char *file)
@@ -578,7 +592,11 @@ void norm_cons(struct connection *top)
 		fprintf(stderr, "Use ntpd ;)\n");
 		unpunct = 1;
 	    }
-	    top->dur = top->pppd_dur;
+	    if( (top->dur = top->pppd_dur) < 0 )
+	    {
+		top->dur = 0;
+		fprintf(stderr, "Some connects have negative time. Making it 0. \n");
+	    }
 	}
 	prev = top;
 	top = top->next;
@@ -687,7 +705,7 @@ void statcpy(struct connection *dest, struct connection *source)
 
 void usage(void)
 {
-    fprintf(stderr, "\nPPPstat version %s. mathway.narod.ru\n", VERSION);
+    fprintf(stderr, "\nPPPstat version %s. http://pppstat.sourceforge.net\n", VERSION);
     fprintf(stderr, "Distributed under GPL.\n\n");
     fprintf(stderr, "Usage:\n");
     fprintf(stderr, "pppstat [-u] [-i] [-m] [-h]\n");
@@ -704,7 +722,7 @@ struct isp *get_isp(void)
     FILE *cfg;
     char line[LINE], *p, *p1;
     struct isp *head, *isp = NULL;
-    int len, i;
+    int len, i, j;
     
     if ( (cfg = fopen(CFG, "r")) == NULL )
     {
@@ -739,9 +757,9 @@ struct isp *get_isp(void)
 	    isp->name = (char *)calloc( 1, len );
 	    strncpy(isp->name, p, len);
 	    
-	    i = 0;
+	    i = j = 0;
 	}
-	else if ( (p = strstr(line, IP)) )
+	else if ( p = strstr(line, IP) )
 	{
 	    p += strlen(IP);
 	    if ( p1 = strchr(line, ';') ) 
@@ -755,6 +773,15 @@ struct isp *get_isp(void)
 	    isp->ip[i] = (char *)calloc( 1, len );
 	    strncpy(isp->ip[i], p, len);
 	    i++;
+	}
+	else if ( p = strstr(line, FROM) )
+	{
+	    isp->price[j] = (struct period *)calloc( 1, sizeof(struct period) );
+	    
+	    sscanf(p, "from %d till %d costs %f", &(isp->price[j]->from), \
+						    &(isp->price[j]->till), \
+						    &(isp->price[j]->cost));
+	    j++;
 	}
     }
     fclose (cfg);
